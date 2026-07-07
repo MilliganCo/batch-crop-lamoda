@@ -41,3 +41,11 @@ tmp_pytorch/
 *.csv
 *.xlsx
 *.xls
+
+# Generated image outputs
+1524x2200/
+output/
+outputs/
+dist/
+build/
+*.spec
