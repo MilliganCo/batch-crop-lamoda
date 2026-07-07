@@ -48,4 +48,3 @@ output/
 outputs/
 dist/
 build/
-*.spec
