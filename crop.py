@@ -17,17 +17,25 @@ def process_image(path, output_dir):
     with Image.open(path) as img:
         # Read original ICC profile bytes (if any)
         orig_icc = img.info.get('icc_profile')
-        # Convert to RGB
-        img = img.convert('RGB')
-        # If original profile exists, convert pixel values to sRGB working space
+        # Transform the original pixel mode using its original profile. A converted
+        # image must be tagged with the destination profile, never the source one.
+        output_icc = None
         if orig_icc:
             try:
                 src_profile = ImageCms.ImageCmsProfile(io.BytesIO(orig_icc))
-                dst_profile = ImageCms.createProfile('sRGB')
+                dst_profile = ImageCms.ImageCmsProfile(ImageCms.createProfile('sRGB'))
+                # Palette indexes need expansion before applying an RGB profile.
+                # Keep LAB/CMYK pixels in their original color space for the transform.
+                if img.mode in ('P', 'PA'):
+                    img = img.convert('RGB')
                 img = ImageCms.profileToProfile(img, src_profile, dst_profile, outputMode='RGB')
-            except Exception as e:
+                output_icc = dst_profile.tobytes()
+            except (ImageCms.PyCMSError, OSError, ValueError) as e:
                 print(f"Warning: color profile conversion failed for {os.path.basename(path)}: {e}")
-        
+                img = img.convert('RGB')
+        else:
+            img = img.convert('RGB')
+
         # Scale to fit target dimensions for cropping
         w, h = img.size
 
@@ -36,15 +44,15 @@ def process_image(path, output_dir):
 
         new_w = int(round(w * scale))
         new_h = int(round(h * scale))
-        
+
         img = img.resize((new_w, new_h), Image.LANCZOS)
-        
+
         # Center-crop to target dimensions
         left = (new_w - target_width) // 2
         top = (new_h - target_height) // 2
         right = left + target_width
         bottom = top + target_height
-        
+
         img = img.crop((left, top, right, bottom))
 
         # Prepare output path in output_dir
@@ -52,10 +60,12 @@ def process_image(path, output_dir):
         base, ext = os.path.splitext(filename)
         out_name = f"{base}_{target_width}x{target_height}{ext}"
         out_path = os.path.join(output_dir, out_name)
-        # Save (embed original ICC profile if present)
+        # Embed only a profile that describes the resulting pixel values.
         save_kwargs = {}
-        if orig_icc:
-            save_kwargs['icc_profile'] = orig_icc
+        # Pillow may otherwise inherit the original profile from img.info.
+        img.info.pop('icc_profile', None)
+        if output_icc:
+            save_kwargs['icc_profile'] = output_icc
         img.save(out_path, **save_kwargs)
         print(f"Saved: {out_path}")
 

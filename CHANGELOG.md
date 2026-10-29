@@ -12,3 +12,9 @@
 - Tkinter folder picker.
 - Batch center crop/resize to `1524x2200`.
 - ICC profile handling and sRGB conversion attempt.
+
+## 2026-10-29
+
+- Fixed ICC conversion: transform the original pixel mode and embed the destination sRGB profile.
+- Do not retain an invalid source profile after fallback RGB conversion.
+- Added dependency installation instructions and synthetic color-profile regression tests.
